@@ -1,24 +1,23 @@
 """Welcome to Reflex! This file outlines the steps to create a basic app."""
 
-from typing import TypedDict
-
 import reflex as rx
 
 from rxconfig import config
+from pydantic import BaseModel
 
 from .hledger_api import HLedgerClient
 
 
-class PostingData(TypedDict, total=False):
-    """Simplified posting representation for the UI layer."""
+class PostingData(BaseModel):
+    """Simplified posting representation for the UI layer (Pydantic)."""
 
     account: str
     amounts: list[str]
     amounts_display: str  # pre-joined string for UI (avoids joining on client)
 
 
-class TransactionData(TypedDict, total=False):
-    """Simplified transaction representation for the UI layer."""
+class TransactionData(BaseModel):
+    """Simplified transaction representation for the UI layer (Pydantic)."""
 
     date: str
     description: str
@@ -68,7 +67,12 @@ class State(rx.State):
             for p in t.get("tpostings", []) or []:
                 amounts_list: list[str] = []
                 for a in p.get("pamount", []) or []:
-                    qty = a.get("aquantity").get("decimalMantissa")
+                    qty_val = a.get("aquantity")
+                    # Support nested structure (e.g. {aquantity: {decimalMantissa: "123"}}) gracefully
+                    if isinstance(qty_val, dict):
+                        qty = qty_val.get("decimalMantissa")
+                    else:
+                        qty = qty_val
                     comm = a.get("acommodity") or ""
                     if qty is None:
                         qty = ""
@@ -91,7 +95,7 @@ class State(rx.State):
                     posting_count=len(postings),
                 )
             )
-        simplified.sort(key=lambda tx: tx.get("date", ""), reverse=True)
+        simplified.sort(key=lambda tx: tx.date, reverse=True)
         self.transactions = simplified
         yield
 
@@ -178,21 +182,19 @@ def transactions_page() -> rx.Component:
                     State.transactions,
                     lambda t: rx.box(
                         rx.hstack(
-                            rx.badge(t["date"], color_scheme="gray"),
-                            rx.text(t["description"], weight="bold"),
+                            rx.badge(t.date, color_scheme="gray"),
+                            rx.text(t.description, weight="bold"),
                             rx.spacer(),
-                            rx.text(
-                                f"{t['posting_count']} postings", color_scheme="gray"
-                            ),
+                            rx.text(f"{t.postings.length()} postings", color_scheme="gray"),
                             width="100%",
                         ),
                         rx.vstack(
                             rx.foreach(
-                                t["postings"],
+                                t.postings,
                                 lambda p: rx.hstack(
-                                    rx.text(p["account"]),
+                                    rx.text(p.account),
                                     rx.spacer(),
-                                    rx.text(p["amounts_display"]),
+                                    rx.text(p.amounts_display),
                                     width="100%",
                                 ),
                             ),

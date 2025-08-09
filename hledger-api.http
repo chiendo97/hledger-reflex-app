@@ -3,13 +3,7 @@ GET http://127.0.0.1:5000/transactions HTTP/1.1
 
 ### 
 
-
-### 
-
 GET http://127.0.0.1:5000/accounts HTTP/1.1
-
-
-### 
 
 
 ### 
@@ -19,10 +13,7 @@ GET http://127.0.0.1:5000/accountnames HTTP/1.1
 
 ### 
 
-
-### 
-
-GET http://127.0.0.1:5000/accounttransactions/asset HTTP/1.1
+GET http://127.0.0.1:5000/accounttransactions/expense:drink:coffee HTTP/1.1
 
 
 ### 

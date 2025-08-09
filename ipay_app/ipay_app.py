@@ -1,9 +1,9 @@
 """Welcome to Reflex! This file outlines the steps to create a basic app."""
 
 import reflex as rx
+from pydantic import BaseModel
 
 from rxconfig import config
-from pydantic import BaseModel
 
 from .hledger_api import HLedgerClient
 
@@ -19,6 +19,7 @@ class PostingData(BaseModel):
 class TransactionData(BaseModel):
     """Simplified transaction representation for the UI layer (Pydantic)."""
 
+    index: int
     date: str
     description: str
     postings: list[PostingData]
@@ -89,13 +90,14 @@ class State(rx.State):
                 )
             simplified.append(
                 TransactionData(
+                    index=t.get("tindex", 0),
                     date=(t.get("tdate") or ""),
                     description=(t.get("tdescription") or ""),
                     postings=postings,
                     posting_count=len(postings),
                 )
             )
-        simplified.sort(key=lambda tx: tx.date, reverse=True)
+        simplified.sort(key=lambda tx: tx.index, reverse=True)
         self.transactions = simplified
         yield
 
@@ -183,9 +185,8 @@ def transactions_page() -> rx.Component:
                     lambda t: rx.box(
                         rx.hstack(
                             rx.badge(t.date, color_scheme="gray"),
-                            rx.text(t.description, weight="bold"),
                             rx.spacer(),
-                            rx.text(f"{t.postings.length()} postings", color_scheme="gray"),
+                            rx.text(t.description, weight="bold"),
                             width="100%",
                         ),
                         rx.vstack(
@@ -198,7 +199,7 @@ def transactions_page() -> rx.Component:
                                     width="100%",
                                 ),
                             ),
-                            padding_left="8px",
+                            padding_left="16px",
                         ),
                         padding="10px",
                         border="1px solid",

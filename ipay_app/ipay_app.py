@@ -367,6 +367,7 @@ class State(rx.State):
 def nav() -> rx.Component:
     return rx.hstack(
         rx.link("Home", href="/"),
+        rx.spacer(),
         rx.link("Transactions", href="/transaction"),
         rx.link("Balance Sheet", href="/balance-sheet"),
         rx.link("Income Statement", href="/income-statement"),

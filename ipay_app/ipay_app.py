@@ -17,7 +17,7 @@ class PostingData(BaseModel):
     amounts: list[str]
     amounts_display: str  # pre-joined string for UI (avoids joining on client)
     amounts_numeric: list[int] = []  # parsed numeric quantities (best-effort)
-    commodity: str | None = None  # first commodity if present
+    commodity: str  # first commodity if present (empty string if none)
 
 
 class TransactionData(BaseModel):
@@ -33,7 +33,7 @@ class TransactionData(BaseModel):
 class AccountBalanceData(BaseModel):
     name: str
     balance: int
-    commodity: str | None = None
+    commodity: str
 
 
 class State(rx.State):
@@ -65,22 +65,20 @@ class State(rx.State):
     search_description: str = ""
     search_account: str = ""
     nested_level: int = 3  # depth for grouping accounts
+    sort_by: str = "index"  # sorting criterion: 'index' (default) or 'amount'
 
     # -------- Events to update filters --------
     @rx.event
     def set_selected_month(self, month: str):
         self.selected_month = month
-        yield
 
     @rx.event
     def set_search_description(self, text: str):
         self.search_description = text.strip()
-        yield
 
     @rx.event
     def set_search_account(self, text: str):
         self.search_account = text.strip()
-        yield
 
     @rx.event
     def set_nested_level(self, level: str):
@@ -88,20 +86,25 @@ class State(rx.State):
             self.nested_level = max(1, min(10, int(level)))
         except ValueError:
             self.nested_level = 1
-        yield
+
+    @rx.event
+    def set_sort_by(self, value: str):
+        if value in {"index", "amount"}:
+            self.sort_by = value
+        else:
+            self.sort_by = "index"
 
     @rx.event
     def clear_transaction_filters(self):
         self.selected_month = ""
         self.search_description = ""
         self.search_account = ""
-        yield
 
     # -------- Derived filter option lists --------
     @rx.var
     def available_months(self) -> list[str]:
         months = {t.date[5:7] for t in self.transactions if len(t.date) >= 7}
-        return sorted(months)
+        return sorted(months, reverse=True)
 
     # -------- Filtered transactions --------
     @rx.var
@@ -117,14 +120,29 @@ class State(rx.State):
             if acct and not any(acct in p.account.lower() for p in tx.postings):
                 continue
             res.append(tx)
+        # Apply sorting
+        if self.sort_by == "amount":
+
+            def txn_max_amount(t: TransactionData) -> int:
+                m = 0
+                for p in t.postings:
+                    if p.amounts_numeric:
+                        pm = max(p.amounts_numeric)
+                        if pm > m:
+                            m = pm
+                return m
+
+            res.sort(key=lambda t: (txn_max_amount(t), t.index), reverse=True)
+        else:  # default index (already descending order in load, but re-ensure)
+            res.sort(key=lambda t: t.index, reverse=True)
         return res
 
     # -------- Account balance aggregation helpers --------
     def _aggregate_balances(
         self, root_prefix: str, apply_month: bool = True
-    ) -> dict[str, tuple[int, str | None]]:
+    ) -> dict[str, tuple[int, str]]:
         balances: dict[str, int] = defaultdict(int)
-        commodities: dict[str, str | None] = {}
+        commodities: dict[str, str] = {}
         for tx in reversed(self.transactions):
             if (
                 apply_month
@@ -152,7 +170,7 @@ class State(rx.State):
                 balances[group_key] += total_posting_amount_int
                 if group_key not in commodities and p.commodity:
                     commodities[group_key] = p.commodity
-        return {k: (balances[k], commodities.get(k)) for k in balances}
+        return {k: (balances[k], commodities.get(k) or "") for k in balances}
 
     @rx.var
     def asset_balances(self) -> list[AccountBalanceData]:
@@ -204,7 +222,7 @@ class State(rx.State):
             for p in t.get("tpostings", []) or []:
                 amounts_list: list[str] = []
                 amounts_numeric: list[int] = []
-                commodity: str | None = None
+                commodity: str = ""  # ensure always a string
                 for a in p.get("pamount", []) or []:
                     qty_val = a.get("aquantity")
                     qty = int(qty_val.get("floatingPoint"))
@@ -237,7 +255,6 @@ class State(rx.State):
             )
         simplified.sort(key=lambda tx: tx.index, reverse=True)
         self.transactions = simplified
-        yield
 
     @rx.event
     def load_accountnames(self):
@@ -251,7 +268,15 @@ class State(rx.State):
             except Exception:
                 pass
         self.accountnames = names
-        yield
+
+    @rx.event
+    def init_transactions_page(self):
+        """Initialize transactions page: pick up ?query=... and load transactions."""
+        q = self.router.url.query_parameters.get("query")
+        if q:
+            self.search_account = str(q)
+
+        self.load_transactions()
 
 
 # ---------------- UI Helpers ----------------
@@ -267,12 +292,40 @@ def nav() -> rx.Component:
     )
 
 
-def section(title: str, content: rx.Component) -> rx.Component:
+# Refactored to use rx.table for Revenue and Expenses
+def account_table(title: str, rows_var):
     return rx.vstack(
-        rx.heading(title, size="6"),
-        content,
-        spacing="3",
-        align_items="stretch",
+        rx.heading(title, size="5"),
+        rx.table.root(
+            rx.table.header(
+                rx.table.row(
+                    rx.table.column_header_cell("Account"),
+                    rx.table.column_header_cell("Amount", text_align="right"),
+                )
+            ),
+            rx.table.body(
+                rx.foreach(
+                    rows_var,
+                    lambda r: rx.table.row(
+                        rx.table.cell(
+                            rx.link(r.name, href=f"/transaction?query={r.name}")
+                        ),
+                        rx.table.cell(
+                            rx.text(
+                                f"{r.balance:,} {r.commodity}",
+                                font_family="monospace",
+                                size="2",
+                                text_align="right",
+                            )
+                        ),
+                    ),
+                )
+            ),
+            variant="surface",
+            size="3",
+            width="100%",
+        ),
+        spacing="2",
         width="100%",
     )
 
@@ -323,6 +376,12 @@ def transactions_page() -> rx.Component:
             value=State.search_account,
             on_change=State.set_search_account,
         ),
+        rx.select(
+            ["index", "amount"],
+            placeholder="Sort by",
+            value=State.sort_by,
+            on_change=State.set_sort_by,
+        ),
         rx.button("Clear", on_click=State.clear_transaction_filters),
         spacing="2",
         width="100%",
@@ -337,7 +396,8 @@ def transactions_page() -> rx.Component:
                 align_items="center",
                 width="100%",
             ),
-            rx.box(on_mount=State.load_transactions),
+            # Initialize page (reads query + loads data)
+            rx.box(on_mount=State.init_transactions_page),
             filters_bar,
             rx.vstack(
                 rx.foreach(
@@ -390,34 +450,9 @@ def balance_sheet_page() -> rx.Component:
         spacing="2",
         width="100%",
     )
-    assets_table = rx.vstack(
-        rx.heading("Assets", size="5"),
-        rx.foreach(
-            State.asset_balances,
-            lambda r: rx.hstack(
-                rx.text(r.name),
-                rx.spacer(),
-                rx.text(f"{r.balance}{' ' + r.commodity}"),
-                width="100%",
-            ),
-        ),
-        spacing="2",
-        width="100%",
-    )
-    liabilities_table = rx.vstack(
-        rx.heading("Liabilities", size="5"),
-        rx.foreach(
-            State.liability_balances,
-            lambda r: rx.hstack(
-                rx.text(r.name),
-                rx.spacer(),
-                rx.text(f"{r.balance}{' ' + r.commodity}"),
-                width="100%",
-            ),
-        ),
-        spacing="2",
-        width="100%",
-    )
+
+    assets_table = account_table("Assets", State.asset_balances)
+    liabilities_table = account_table("Liabilities", State.liability_balances)
     return rx.container(
         nav(),
         rx.vstack(
@@ -434,6 +469,7 @@ def balance_sheet_page() -> rx.Component:
                 columns="2",
                 gap="6",
                 width="100%",
+                spacing="4",
             ),
             spacing="4",
             width="100%",
@@ -460,34 +496,9 @@ def income_statement_page() -> rx.Component:
         spacing="2",
         width="100%",
     )
-    income_table = rx.vstack(
-        rx.heading("Revenue", size="5"),
-        rx.foreach(
-            State.income_balances,
-            lambda r: rx.hstack(
-                rx.text(r.name),
-                rx.spacer(),
-                rx.text(f"{r.balance}{' ' + r.commodity}"),
-                width="100%",
-            ),
-        ),
-        spacing="2",
-        width="100%",
-    )
-    expense_table = rx.vstack(
-        rx.heading("Expenses", size="5"),
-        rx.foreach(
-            State.expense_balances,
-            lambda r: rx.hstack(
-                rx.text(r.name),
-                rx.spacer(),
-                rx.text(f"{r.balance}{' ' + r.commodity}"),
-                width="100%",
-            ),
-        ),
-        spacing="2",
-        width="100%",
-    )
+
+    income_table = account_table("Revenue", State.income_balances)
+    expense_table = account_table("Expenses", State.expense_balances)
     return rx.container(
         nav(),
         rx.vstack(
@@ -504,6 +515,7 @@ def income_statement_page() -> rx.Component:
                 columns="2",
                 gap="6",
                 width="100%",
+                spacing="4",
             ),
             spacing="4",
             width="100%",

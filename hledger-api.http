@@ -1,26 +1,31 @@
-GET http://127.0.0.1:5000/transactions HTTP/1.1
+@host=http://127.0.0.1:5000
+@host=http://100.89.182.96:5003
+
+###
+GET {{host}}/transactions HTTP/1.1
 
 
 ### 
 
-GET http://127.0.0.1:5000/accounts HTTP/1.1
+GET {{host}}/accounts HTTP/1.1
 
 
 ### 
 
-GET http://127.0.0.1:5000/accountnames HTTP/1.1
+GET {{host}}/accountnames HTTP/1.1
 
 
 ### 
 
-GET http://127.0.0.1:5000/accounttransactions/expense:drink:coffee HTTP/1.1
+GET {{host}}/accounttransactions/expense:drink:coffee HTTP/1.1
 
 
 ### 
 
-GET http://127.0.0.1:5000/prices HTTP/1.1
+GET {{host}}/prices HTTP/1.1
 
 
 ### 
 
-GET http://127.0.0.1:5000/commodities HTTP/1.1
+GET {{host}}/commodities HTTP/1.1
+

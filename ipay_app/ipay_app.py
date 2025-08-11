@@ -1,5 +1,6 @@
 """Welcome to Reflex! This file outlines the steps to create a basic app."""
 
+import time
 from collections import defaultdict
 
 import reflex as rx
@@ -42,6 +43,7 @@ class State(rx.State):
     # Data
     transactions: list[TransactionData] = []  # strongly typed simplified txns
     accountnames: list[str] = []  # list of account name strings
+    loading: bool = False  # global loading flag for data-dependent UI
 
     # -------- Computed account groups --------
     @rx.var
@@ -208,8 +210,13 @@ class State(rx.State):
     @rx.event
     def load_transactions(self):
         """Load and simplify transactions from the hledger API into typed structures."""
+        start_time = time.time()
+        print("Loading transactions...")
+        self.loading = True
+        yield
+
         raw_txns: list = []
-        with HLedgerClient() as client:
+        with HLedgerClient("http://100.89.182.96:5003") as client:
             try:
                 raw = client.get_transactions().model_dump(mode="json")
                 if isinstance(raw, list):
@@ -229,7 +236,7 @@ class State(rx.State):
                     comm = a.get("acommodity") or ""
                     if comm and not commodity:
                         commodity = comm
-                    formatted = str(qty)
+                    formatted = f"{qty:,}"
                     if comm:
                         formatted += f" {comm}"
                     amounts_list.append(formatted)
@@ -255,6 +262,10 @@ class State(rx.State):
             )
         simplified.sort(key=lambda tx: tx.index, reverse=True)
         self.transactions = simplified
+        self.loading = False
+        print(
+            "Loaded transactions in", (time.time() - start_time) * 1000, "milliseconds"
+        )
 
     @rx.event
     def load_accountnames(self):
@@ -294,39 +305,57 @@ def nav() -> rx.Component:
 
 # Refactored to use rx.table for Revenue and Expenses
 def account_table(title: str, rows_var):
-    return rx.vstack(
-        rx.heading(title, size="5"),
-        rx.table.root(
-            rx.table.header(
-                rx.table.row(
-                    rx.table.column_header_cell("Account"),
-                    rx.table.column_header_cell("Amount", text_align="right"),
-                )
-            ),
-            rx.table.body(
+    return rx.cond(
+        State.loading,
+        rx.vstack(
+            rx.heading(title, size="5"),
+            rx.vstack(
                 rx.foreach(
-                    rows_var,
-                    lambda r: rx.table.row(
-                        rx.table.cell(
-                            rx.link(r.name, href=f"/transaction?query={r.name}")
-                        ),
-                        rx.table.cell(
-                            rx.text(
-                                f"{r.balance:,} {r.commodity}",
-                                font_family="monospace",
-                                size="2",
-                                text_align="right",
-                            )
-                        ),
+                    list(range(5)),
+                    lambda _: rx.skeleton(
+                        width="100%", height="28px", border_radius="6px"
                     ),
-                )
+                ),
+                spacing="2",
+                width="100%",
             ),
-            variant="surface",
-            size="3",
+            spacing="2",
             width="100%",
         ),
-        spacing="2",
-        width="100%",
+        rx.vstack(
+            rx.heading(title, size="5"),
+            rx.table.root(
+                rx.table.header(
+                    rx.table.row(
+                        rx.table.column_header_cell("Account"),
+                        rx.table.column_header_cell("Amount", text_align="right"),
+                    )
+                ),
+                rx.table.body(
+                    rx.foreach(
+                        rows_var,
+                        lambda r: rx.table.row(
+                            rx.table.cell(
+                                rx.link(r.name, href=f"/transaction?query={r.name}")
+                            ),
+                            rx.table.cell(
+                                rx.text(
+                                    f"{r.balance:,} {r.commodity}",
+                                    font_family="monospace",
+                                    size="2",
+                                    text_align="right",
+                                )
+                            ),
+                        ),
+                    )
+                ),
+                variant="surface",
+                size="3",
+                width="100%",
+            ),
+            spacing="2",
+            width="100%",
+        ),
     )
 
 
@@ -388,43 +417,75 @@ def transactions_page() -> rx.Component:
                     on_change=State.set_sort_by,
                 ),
                 rx.button("Clear", on_click=State.clear_transaction_filters),
-                rx.button("Reload", on_click=State.load_transactions),
+                rx.button(
+                    "Reload",
+                    on_click=State.load_transactions,
+                    loading=State.loading,
+                ),
                 align_items="center",
                 width="100%",
             ),
             # Initialize page (reads query + loads data)
-            rx.box(on_mount=State.init_transactions_page),
-            rx.vstack(
-                rx.foreach(
-                    State.transactions_filtered,
-                    lambda t: rx.box(
-                        rx.hstack(
-                            rx.badge(t.date, color_scheme="gray"),
-                            rx.spacer(),
-                            rx.text(t.description, weight="bold"),
+            rx.cond(
+                State.loading,
+                rx.vstack(
+                    rx.foreach(
+                        list(range(6)),
+                        lambda _: rx.box(
+                            rx.vstack(
+                                rx.skeleton(width="120px", height="16px"),
+                                rx.skeleton(width="60%", height="16px"),
+                                rx.skeleton(width="80%", height="16px"),
+                                spacing="2",
+                                width="100%",
+                            ),
+                            padding="10px",
+                            border="1px solid",
+                            border_color=rx.color("accent", 4),
+                            border_radius="8px",
                             width="100%",
                         ),
-                        rx.vstack(
-                            rx.foreach(
-                                t.postings,
-                                lambda p: rx.hstack(
-                                    rx.text(p.account),
-                                    rx.spacer(),
-                                    rx.text(p.amounts_display),
-                                    width="100%",
-                                ),
-                            ),
-                            padding_left="16px",
-                        ),
-                        padding="10px",
-                        border="1px solid",
-                        border_color=rx.color("accent", 4),
-                        border_radius="8px",
-                        width="100%",
                     ),
+                    spacing="3",
+                    width="100%",
                 ),
-                spacing="3",
-                width="100%",
+                rx.vstack(
+                    rx.foreach(
+                        State.transactions_filtered,
+                        lambda t: rx.box(
+                            rx.hstack(
+                                rx.badge(t.date, color_scheme="gray"),
+                                rx.spacer(),
+                                rx.text(t.description, weight="bold"),
+                                width="100%",
+                            ),
+                            rx.vstack(
+                                rx.foreach(
+                                    t.postings,
+                                    lambda p: rx.hstack(
+                                        rx.text(p.account),
+                                        rx.spacer(),
+                                        rx.text(
+                                            p.amounts_display,
+                                            font_family="monospace",
+                                            size="3",
+                                            text_align="right",
+                                        ),
+                                        width="100%",
+                                    ),
+                                ),
+                                padding_left="16px",
+                            ),
+                            padding="10px",
+                            border="1px solid",
+                            border_color=rx.color("accent", 4),
+                            border_radius="8px",
+                            width="100%",
+                        ),
+                    ),
+                    spacing="3",
+                    width="100%",
+                ),
             ),
             spacing="4",
             width="100%",
@@ -447,10 +508,13 @@ def balance_sheet_page() -> rx.Component:
                     placeholder="Level",
                     on_change=State.set_nested_level,
                 ),
-                rx.button("Reload", on_click=State.load_transactions),
+                rx.button(
+                    "Reload",
+                    on_click=State.load_transactions,
+                    loading=State.loading,
+                ),
                 width="100%",
             ),
-            rx.box(on_mount=State.load_accountnames),
             rx.grid(
                 assets_table,
                 liabilities_table,
@@ -486,10 +550,13 @@ def income_statement_page() -> rx.Component:
                     placeholder="Level",
                     on_change=State.set_nested_level,
                 ),
-                rx.button("Reload", on_click=State.load_transactions),
+                rx.button(
+                    "Reload",
+                    on_click=State.load_transactions,
+                    loading=State.loading,
+                ),
                 width="100%",
             ),
-            rx.box(on_mount=State.load_accountnames),
             rx.grid(
                 income_table,
                 expense_table,
@@ -507,6 +574,18 @@ def income_statement_page() -> rx.Component:
 
 app = rx.App()
 app.add_page(index)
-app.add_page(transactions_page, route="/transaction")
-app.add_page(balance_sheet_page, route="/balance-sheet")
-app.add_page(income_statement_page, route="/income-statement")
+app.add_page(
+    transactions_page,
+    route="/transaction",
+    on_load=State.init_transactions_page,
+)
+app.add_page(
+    balance_sheet_page,
+    route="/balance-sheet",
+    on_load=State.load_transactions,
+)
+app.add_page(
+    income_statement_page,
+    route="/income-statement",
+    on_load=State.load_transactions,
+)

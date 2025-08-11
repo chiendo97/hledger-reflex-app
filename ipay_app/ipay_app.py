@@ -20,10 +20,53 @@ class PostingData(BaseModel):
     amounts_display: str  # pre-joined string for UI (avoids joining on client)
     amounts_numeric: list[int] = []  # parsed numeric quantities (best-effort)
     commodity: str  # first commodity if present (empty string if none)
-    # Precomputed helpers for UI coloring / styling
-    total_amount: int = 0  # sum of numeric amounts (if any)
-    account_color: str = ""  # stable color per account
-    amount_color: str = ""  # green if positive, red if negative, neutral otherwise
+
+    # Curated Radix color token palette (broad hue coverage, stable mapping).
+    # Order roughly follows the color wheel for visual variety when adjacent.
+    palette: list[str] = [
+        # Warm / reds
+        "tomato",
+        "red",
+        "crimson",
+        "ruby",
+        "pink",
+        # Oranges / ambers / yellows
+        "orange",
+        "amber",
+        "gold",
+        "bronze",
+        "brown",
+        # Greens
+        "lime",
+        "grass",
+        "green",
+        "olive",
+        "mint",
+        # Aquas / blues
+        "teal",
+        "cyan",
+        "sky",
+        "blue",
+        "indigo",
+        # Purples
+        "violet",
+        "purple",
+        "plum",
+    ]
+
+    @computed_field
+    def account_color(self) -> str:
+        key = self.account.lower()
+        # Deterministic hash -> palette index (stable across sessions)
+        h = hashlib.sha256(key.encode()).hexdigest()
+        idx = int(h, 16) % len(self.palette)
+        color = self.palette[idx]
+        return color
+
+    @computed_field
+    def amount_color(self) -> str:
+        total_amount = sum(self.amounts_numeric)
+        return "green" if total_amount > 0 else "red" if total_amount < 0 else "gray"
 
 
 class TransactionData(BaseModel):
@@ -240,51 +283,6 @@ class State(rx.State):
                 pass
         simplified: list[TransactionData] = []
 
-        # Curated Radix color token palette (broad hue coverage, stable mapping).
-        # Order roughly follows the color wheel for visual variety when adjacent.
-        palette = [
-            # Warm / reds
-            "tomato",
-            "red",
-            "crimson",
-            "ruby",
-            "pink",
-            # Oranges / ambers / yellows
-            "orange",
-            "amber",
-            "gold",
-            "bronze",
-            "brown",
-            # Greens
-            "lime",
-            "grass",
-            "green",
-            "olive",
-            "mint",
-            # Aquas / blues
-            "teal",
-            "cyan",
-            "sky",
-            "blue",
-            "indigo",
-            # Purples
-            "violet",
-            "purple",
-            "plum",
-        ]
-        account_color_cache: dict[str, str] = {}
-
-        def assign_account_color(account: str) -> str:
-            key = account.lower()
-            if key in account_color_cache:
-                return account_color_cache[key]
-            # Deterministic hash -> palette index (stable across sessions)
-            h = hashlib.sha256(key.encode()).hexdigest()
-            idx = int(h, 16) % len(palette)
-            color = palette[idx]
-            account_color_cache[key] = color
-            return color
-
         for t in raw_txns:
             postings: list[PostingData] = []
             for p in t.get("tpostings", []) or []:
@@ -305,12 +303,6 @@ class State(rx.State):
                         formatted += f" {comm}"
                     amounts_list.append(formatted)
                     amounts_numeric.append(qty)
-                total_amount = sum(amounts_numeric) if amounts_numeric else 0
-                amount_color = (
-                    "green"
-                    if total_amount > 0
-                    else "red" if total_amount < 0 else "gray"
-                )
                 account_name = p.get("paccount", "")
                 postings.append(
                     PostingData(
@@ -319,9 +311,6 @@ class State(rx.State):
                         amounts_display=", ".join(amounts_list) if amounts_list else "",
                         amounts_numeric=amounts_numeric,
                         commodity=commodity,
-                        total_amount=total_amount,
-                        account_color=assign_account_color(account_name),
-                        amount_color=amount_color,
                     )
                 )
             simplified.append(

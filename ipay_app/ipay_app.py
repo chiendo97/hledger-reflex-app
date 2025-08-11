@@ -5,7 +5,7 @@ import time
 from collections import defaultdict
 
 import reflex as rx
-from pydantic import BaseModel
+from pydantic import BaseModel, computed_field
 
 from rxconfig import config
 
@@ -40,6 +40,16 @@ class AccountBalanceData(BaseModel):
     name: str
     balance: int
     commodity: str
+
+    @computed_field
+    def color(self) -> str:
+        """Return color based on balance: green if positive, red if negative, gray if zero."""
+        if self.balance > 0:
+            return "green"
+        elif self.balance < 0:
+            return "red"
+        else:
+            return "gray"
 
 
 class State(rx.State):
@@ -199,15 +209,15 @@ class State(rx.State):
     def income_balances(self) -> list[AccountBalanceData]:
         data = self._aggregate_balances("revenue", apply_month=True)
         return [
-            AccountBalanceData(name=k, balance=v[0], commodity=v[1])
-            for k, v in sorted(data.items(), key=lambda item: (-item[1][0], item[0]))
+            AccountBalanceData(name=k, balance=-v[0], commodity=v[1])
+            for k, v in sorted(data.items(), key=lambda item: (item[1][0], item[0]))
         ]
 
     @rx.var
     def expense_balances(self) -> list[AccountBalanceData]:
         data = self._aggregate_balances("expense", apply_month=True)
         return [
-            AccountBalanceData(name=k, balance=v[0], commodity=v[1])
+            AccountBalanceData(name=k, balance=-v[0], commodity=v[1])
             for k, v in sorted(data.items(), key=lambda item: (-item[1][0], item[0]))
         ]
 
@@ -406,6 +416,7 @@ def account_table(title: str, rows_var):
                                     font_family="monospace",
                                     size="2",
                                     text_align="right",
+                                    color=r.color,
                                 )
                             ),
                         ),
@@ -516,9 +527,9 @@ def transactions_page() -> rx.Component:
                         State.transactions_filtered,
                         lambda t: rx.box(
                             rx.hstack(
-                                rx.badge(t.date, color_scheme="gray"),
+                                rx.badge(t.date, color_scheme="gray", size="2"),
                                 rx.spacer(),
-                                rx.text(t.description),
+                                rx.text(t.description, align="right"),
                                 width="100%",
                                 align="center",
                             ),

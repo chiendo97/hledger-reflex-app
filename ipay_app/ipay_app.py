@@ -216,7 +216,7 @@ class State(rx.State):
         yield
 
         raw_txns: list = []
-        with HLedgerClient("http://100.89.182.96:5003") as client:
+        with HLedgerClient() as client:
             try:
                 raw = client.get_transactions().model_dump(mode="json")
                 if isinstance(raw, list):
@@ -294,12 +294,11 @@ class State(rx.State):
 def nav() -> rx.Component:
     return rx.hstack(
         rx.link("Home", href="/"),
-        rx.spacer(),
         rx.link("Transactions", href="/transaction"),
         rx.link("Balance Sheet", href="/balance-sheet"),
         rx.link("Income Statement", href="/income-statement"),
         width="100%",
-        padding_y="8px",
+        align="center",
     )
 
 
@@ -391,9 +390,8 @@ def transactions_page() -> rx.Component:
     return rx.container(
         nav(),
         rx.vstack(
-            rx.hstack(
-                rx.heading("Transactions", size="7"),
-                rx.spacer(),
+            rx.heading("Transactions", size="7"),
+            rx.flex(
                 rx.select(
                     State.available_months,
                     placeholder="Month",
@@ -422,7 +420,8 @@ def transactions_page() -> rx.Component:
                     on_click=State.load_transactions,
                     loading=State.loading,
                 ),
-                align_items="center",
+                spacing="2",
+                flex_wrap="wrap",
                 width="100%",
             ),
             # Initialize page (reads query + loads data)
@@ -456,22 +455,27 @@ def transactions_page() -> rx.Component:
                             rx.hstack(
                                 rx.badge(t.date, color_scheme="gray"),
                                 rx.spacer(),
-                                rx.text(t.description, weight="bold"),
+                                rx.text(t.description),
                                 width="100%",
+                                align="center",
                             ),
                             rx.vstack(
                                 rx.foreach(
                                     t.postings,
-                                    lambda p: rx.hstack(
-                                        rx.text(p.account),
-                                        rx.spacer(),
+                                    lambda p: rx.flex(
+                                        rx.text(
+                                            p.account,
+                                            weight="bold",
+                                        ),
                                         rx.text(
                                             p.amounts_display,
                                             font_family="monospace",
-                                            size="3",
+                                            size="2",
                                             text_align="right",
                                         ),
                                         width="100%",
+                                        align="center",
+                                        justify="between",
                                     ),
                                 ),
                                 padding_left="16px",
@@ -500,9 +504,8 @@ def balance_sheet_page() -> rx.Component:
     return rx.container(
         nav(),
         rx.vstack(
-            rx.hstack(
-                rx.heading("Balance Sheet", size="7"),
-                rx.spacer(),
+            rx.heading("Balance Sheet", size="7"),
+            rx.flex(
                 rx.select(
                     [str(i) for i in range(1, 4)],
                     placeholder="Level",
@@ -513,12 +516,13 @@ def balance_sheet_page() -> rx.Component:
                     on_click=State.load_transactions,
                     loading=State.loading,
                 ),
+                spacing="2",
                 width="100%",
             ),
             rx.grid(
                 assets_table,
                 liabilities_table,
-                columns="2",
+                columns=rx.breakpoints(initial="1", sm="2", lg="2"),
                 gap="6",
                 width="100%",
                 spacing="4",
@@ -536,9 +540,8 @@ def income_statement_page() -> rx.Component:
     return rx.container(
         nav(),
         rx.vstack(
-            rx.hstack(
-                rx.heading("Income Statement", size="7"),
-                rx.spacer(),
+            rx.heading("Income Statement", size="7"),
+            rx.flex(
                 rx.select(
                     State.available_months,
                     placeholder="Month",
@@ -555,12 +558,13 @@ def income_statement_page() -> rx.Component:
                     on_click=State.load_transactions,
                     loading=State.loading,
                 ),
+                spacing="2",
                 width="100%",
             ),
             rx.grid(
                 income_table,
                 expense_table,
-                columns="2",
+                columns=rx.breakpoints(initial="1", sm="2", lg="2"),
                 gap="6",
                 width="100%",
                 spacing="4",

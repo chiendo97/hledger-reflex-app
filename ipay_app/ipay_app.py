@@ -359,46 +359,41 @@ def index() -> rx.Component:
 
 
 def transactions_page() -> rx.Component:
-    filters_bar = rx.hstack(
-        rx.select(
-            State.available_months,
-            placeholder="Month",
-            on_change=State.set_selected_month,
-            value=State.selected_month,
-        ),
-        rx.input(
-            placeholder="Search description",
-            value=State.search_description,
-            on_change=State.set_search_description,
-        ),
-        rx.input(
-            placeholder="Search account",
-            value=State.search_account,
-            on_change=State.set_search_account,
-        ),
-        rx.select(
-            ["index", "amount"],
-            placeholder="Sort by",
-            value=State.sort_by,
-            on_change=State.set_sort_by,
-        ),
-        rx.button("Clear", on_click=State.clear_transaction_filters),
-        spacing="2",
-        width="100%",
-    )
     return rx.container(
         nav(),
         rx.vstack(
             rx.hstack(
                 rx.heading("Transactions", size="7"),
                 rx.spacer(),
+                rx.select(
+                    State.available_months,
+                    placeholder="Month",
+                    on_change=State.set_selected_month,
+                    value=State.selected_month,
+                ),
+                rx.input(
+                    placeholder="Search description",
+                    value=State.search_description,
+                    on_change=State.set_search_description,
+                ),
+                rx.input(
+                    placeholder="Search account",
+                    value=State.search_account,
+                    on_change=State.set_search_account,
+                ),
+                rx.select(
+                    ["index", "amount"],
+                    placeholder="Sort by",
+                    value=State.sort_by,
+                    on_change=State.set_sort_by,
+                ),
+                rx.button("Clear", on_click=State.clear_transaction_filters),
                 rx.button("Reload", on_click=State.load_transactions),
                 align_items="center",
                 width="100%",
             ),
             # Initialize page (reads query + loads data)
             rx.box(on_mount=State.init_transactions_page),
-            filters_bar,
             rx.vstack(
                 rx.foreach(
                     State.transactions_filtered,
@@ -439,18 +434,6 @@ def transactions_page() -> rx.Component:
 
 
 def balance_sheet_page() -> rx.Component:
-    controls = rx.hstack(
-        rx.select(
-            [str(i) for i in range(1, 4)],
-            placeholder="Level",
-            on_change=State.set_nested_level,
-            value=str(State.nested_level),
-        ),
-        rx.button("Reload", on_click=State.load_transactions),
-        spacing="2",
-        width="100%",
-    )
-
     assets_table = account_table("Assets", State.asset_balances)
     liabilities_table = account_table("Liabilities", State.liability_balances)
     return rx.container(
@@ -459,7 +442,12 @@ def balance_sheet_page() -> rx.Component:
             rx.hstack(
                 rx.heading("Balance Sheet", size="7"),
                 rx.spacer(),
-                controls,
+                rx.select(
+                    [str(i) for i in range(1, 4)],
+                    placeholder="Level",
+                    on_change=State.set_nested_level,
+                ),
+                rx.button("Reload", on_click=State.load_transactions),
                 width="100%",
             ),
             rx.box(on_mount=State.load_accountnames),
@@ -479,24 +467,6 @@ def balance_sheet_page() -> rx.Component:
 
 
 def income_statement_page() -> rx.Component:
-    controls = rx.hstack(
-        rx.select(
-            State.available_months,
-            placeholder="Month",
-            on_change=State.set_selected_month,
-            value=State.selected_month,
-        ),
-        rx.select(
-            [str(i) for i in range(1, 4)],
-            placeholder="Level",
-            on_change=State.set_nested_level,
-            value=str(State.nested_level),
-        ),
-        rx.button("Reload", on_click=State.load_transactions),
-        spacing="2",
-        width="100%",
-    )
-
     income_table = account_table("Revenue", State.income_balances)
     expense_table = account_table("Expenses", State.expense_balances)
     return rx.container(
@@ -505,7 +475,18 @@ def income_statement_page() -> rx.Component:
             rx.hstack(
                 rx.heading("Income Statement", size="7"),
                 rx.spacer(),
-                controls,
+                rx.select(
+                    State.available_months,
+                    placeholder="Month",
+                    on_change=State.set_selected_month,
+                    value=State.selected_month,
+                ),
+                rx.select(
+                    [str(i) for i in range(1, 4)],
+                    placeholder="Level",
+                    on_change=State.set_nested_level,
+                ),
+                rx.button("Reload", on_click=State.load_transactions),
                 width="100%",
             ),
             rx.box(on_mount=State.load_accountnames),

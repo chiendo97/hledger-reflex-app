@@ -15,18 +15,22 @@ def charts_page() -> rx.Component:
         rx.heading("Charts Overview", size="7"),
         rx.grid(
             rx.vstack(
-                rx.heading("Income (Bar Chart)", size="5"),
+                rx.heading("Monthly Revenue (Stacked Bar)", size="5"),
                 rx.recharts.bar_chart(
-                    rx.recharts.bar(
-                        data_key="value",
-                        stroke=rx.color("accent", 9),
-                        fill=rx.color("accent", 8),
+                    rx.foreach(
+                        State.revenue_level2_category_colors,
+                        lambda cat_color: rx.recharts.bar(
+                            data_key=cat_color[0],
+                            stack_id="revenue",
+                            fill=rx.color(cat_color[1], 8),
+                        ),
                     ),
-                    rx.recharts.x_axis(data_key="name"),
+                    rx.recharts.x_axis(data_key="month", interval=0),
                     rx.recharts.y_axis(),
-                    data=State.income_data,
+                    rx.recharts.legend(),
+                    data=State.monthly_revenue_stacked,
                     width="100%",
-                    height=300,
+                    height=400,
                 ),
             ),
             rx.vstack(

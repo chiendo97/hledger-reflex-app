@@ -350,15 +350,43 @@ class State(rx.State):
         return sorted(cats)
 
     @rx.var
-    def expense_level2_category_colors(self) -> dict[str, str]:
+    def revenue_level2_categories(self) -> list[str]:
+        """All unique level-2 revenue category keys (Revenue:Category)."""
+        cats: set[str] = set()
+        for tx in self.transactions:
+            for p in tx.postings:
+                acct_lower = p.account.lower()
+                if not acct_lower.startswith("revenue"):
+                    continue
+                parts = p.account.split(":")
+                if len(parts) >= 2:
+                    key = ":".join(parts[:2])
+                else:
+                    key = p.account
+                cats.add(key)
+        return sorted(cats)
+
+    @rx.var
+    def expense_level2_category_colors(self) -> list[tuple[str, str]]:
         """Deterministic color per level-2 category using same palette logic as postings."""
         palette = PostingData.palette
-        mapping: dict[str, str] = {}
+        result: list[tuple[str, str]] = []
         for cat in self.expense_level2_categories:
             h = hashlib.sha256(cat.lower().encode()).hexdigest()
             idx = int(h, 16) % len(palette)
-            mapping[cat] = palette[idx]
-        return mapping
+            result.append((cat, palette[idx]))
+        return result
+
+    @rx.var
+    def revenue_level2_category_colors(self) -> list[tuple[str, str]]:
+        """Deterministic color per level-2 revenue category using same palette logic as postings."""
+        palette = PostingData.palette
+        result: list[tuple[str, str]] = []
+        for cat in self.revenue_level2_categories:
+            h = hashlib.sha256(cat.lower().encode()).hexdigest()
+            idx = int(h, 16) % len(palette)
+            result.append((cat, palette[idx]))
+        return result
 
     @rx.var
     def monthly_expense_stacked(self) -> list[dict]:
@@ -400,4 +428,45 @@ class State(rx.State):
                 row[cat] = v
             rows.append(row)
         print(rows)
+        return rows
+
+    @rx.var
+    def monthly_revenue_stacked(self) -> list[dict]:
+        """Return list of dicts: one per month with summed revenue amounts per level-2 category.
+
+        Example element: {"month": "2025-01", "Revenue:Salary": 5000, "Revenue:Freelance": 1500}
+        Amounts are positive numbers representing the magnitude of revenue in that month.
+        """
+        # month -> category -> amount (signed as in postings)
+        month_cat: dict[str, dict[str, int]] = defaultdict(lambda: defaultdict(int))
+        for tx in self.transactions:
+            if len(tx.date) < 7:
+                continue
+            month = tx.date[:7]  # YYYY-MM
+            for p in tx.postings:
+                acct_lower = p.account.lower()
+                if not acct_lower.startswith("revenue"):
+                    continue
+                total_posting_amount = (
+                    sum(p.amounts_numeric) if p.amounts_numeric else 0
+                )
+                # Determine level-2 key
+                parts = p.account.split(":")
+                if len(parts) >= 2:
+                    key = ":".join(parts[:2])
+                else:
+                    key = p.account
+                month_cat[month][key] += total_posting_amount
+        # Build unified list ensuring all categories present per row
+        categories = self.revenue_level2_categories
+        rows: list[dict] = []
+        for month in sorted(month_cat.keys()):
+            row: dict[str, int | str] = {"month": month}
+            for cat in categories:
+                v = month_cat[month].get(cat, 0)
+                # Convert to positive magnitude (revenue is typically negative in accounting)
+                if v < 0:
+                    v = -v
+                row[cat] = v
+            rows.append(row)
         return rows

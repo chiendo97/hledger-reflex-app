@@ -34,14 +34,15 @@ def charts_page() -> rx.Component:
                 ),
             ),
             rx.vstack(
-                rx.heading("Expenses (Pie Chart)", size="5"),
+                rx.heading("Level 2 Expenses (Pie Chart)", size="5"),
                 rx.recharts.pie_chart(
                     rx.recharts.pie(
-                        data=State.expense_data,
+                        data=State.expense_level2_data,
                         data_key="value",
                         name_key="name",
                         label=True,
                     ),
+                    rx.recharts.legend(),
                     width="100%",
                     height=300,
                 ),

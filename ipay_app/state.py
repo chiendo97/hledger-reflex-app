@@ -350,6 +350,55 @@ class State(rx.State):
         return sorted(cats)
 
     @rx.var
+    def expense_level2_data(self) -> list:
+        """Pie chart data for level 2 expense categories with totals and colors."""
+        # Aggregate expenses by level 2 categories
+        level2_totals: dict[str, int] = defaultdict(int)
+
+        for tx in self.transactions:
+            # Apply month filter if selected
+            if self.selected_month and not tx.date[5:7] == self.selected_month:
+                continue
+
+            for p in tx.postings:
+                acct_lower = p.account.lower()
+                if not acct_lower.startswith("expense"):
+                    continue
+
+                total_posting_amount = (
+                    sum(p.amounts_numeric) if p.amounts_numeric else 0
+                )
+
+                # Get level 2 category key
+                parts = p.account.split(":")
+                if len(parts) >= 2:
+                    key = ":".join(parts[:2])
+                else:
+                    key = p.account
+
+                level2_totals[key] += total_posting_amount
+
+        # Convert to pie chart format with colors
+        palette = PostingData.palette
+        result = []
+
+        for category, total in level2_totals.items():
+            # Convert to positive value for display (expenses are typically negative)
+            value = -total if total < 0 else total
+
+            # Generate consistent color for category
+            h = hashlib.sha256(category.lower().encode()).hexdigest()
+            idx = int(h, 16) % len(palette)
+            color = palette[idx]
+
+            if value > 0:  # Only include categories with actual expenses
+                result.append({"name": category, "value": value, "fill": color})
+
+        # Sort by value descending for better visualization
+        result.sort(key=lambda x: x["value"], reverse=True)
+        return result
+
+    @rx.var
     def revenue_level2_categories(self) -> list[str]:
         """All unique level-2 revenue category keys (Revenue:Category)."""
         cats: set[str] = set()

@@ -21,28 +21,15 @@ Usage:
     txns = client.get_transactions()   # -> Transactions
 """
 
-from __future__ import annotations
-
+import os
 from dataclasses import dataclass
 from datetime import date
-from typing import Any, Mapping, Optional
+from typing import Any, Optional
 
 import httpx
 from pydantic import BaseModel, RootModel
-from pydantic.config import ConfigDict
-
-__all__ = [
-    "HLedgerClient",
-    "HLedgerAPIError",
-    "AccountNames",
-    "Transactions",
-    "Transaction",
-    "Posting",
-    "Amount",
-]
 
 
-# ------------------------ Pydantic models ------------------------
 class AccountNames(RootModel[list[str]]):
     """Represents the /accountnames response: a list of account name strings."""
 
@@ -58,15 +45,11 @@ class Amount(BaseModel):
     aprice: Optional[Any] = None
     aquantity: Optional[Any] = None
 
-    model_config = ConfigDict(extra="ignore")
-
 
 class Posting(BaseModel):
     paccount: str
     pamount: Optional[list[Amount]] = None
     pcomment: Optional[str] = None
-
-    model_config = ConfigDict(extra="ignore")
 
 
 class Transaction(BaseModel):
@@ -78,8 +61,6 @@ class Transaction(BaseModel):
     tindex: int
     tpostings: list[Posting]
 
-    model_config = ConfigDict(extra="ignore")
-
 
 class Transactions(RootModel[list[Transaction]]):
     """Represents the /transactions response: a list of transactions."""
@@ -88,6 +69,9 @@ class Transactions(RootModel[list[Transaction]]):
 # ------------------------ Errors ------------------------
 class HLedgerAPIError(Exception):
     """Represents an error returned by or encountered calling the hledger API."""
+
+
+HLEDGER_API = os.getenv("HLEDGER_API", "http://localhost:5000")
 
 
 # ------------------------ Client ------------------------
@@ -101,9 +85,10 @@ class HLedgerClient:
         default_headers: Optional headers to include with each request.
     """
 
-    base_url: str = "http://127.0.0.1:5000"
+    base_url: str = HLEDGER_API
     timeout: float = 10.0
-    default_headers: Optional[Mapping[str, str]] = None
+    default_headers: dict | None = None
+
     _client: Optional[httpx.Client] = None
 
     # ---- lifecycle ----
@@ -129,42 +114,33 @@ class HLedgerClient:
         self.close()
 
     # --------------- Public endpoint methods ---------------
-    def get_version(self) -> Any:
+    def get_version(self):
         return self._get_json("version")
 
-    def get_accountnames(
-        self, params: Optional[Mapping[str, Any]] = None
-    ) -> AccountNames:
+    def get_accountnames(self, params: dict | None = None) -> AccountNames:
         data = self._get_json("accountnames", params)
         return AccountNames.model_validate(data)
 
-    def get_transactions(
-        self, params: Optional[Mapping[str, Any]] = None
-    ) -> Transactions:
+    def get_transactions(self, params: dict | None = None) -> Transactions:
         data = self._get_json("transactions", params)
         return Transactions.model_validate(data)
 
-    def get_prices(self, params: Optional[Mapping[str, Any]] = None) -> Any:
+    def get_prices(self, params: dict | None = None):
         return self._get_json("prices", params)
 
-    def get_commodities(self, params: Optional[Mapping[str, Any]] = None) -> Any:
+    def get_commodities(self, params: dict | None = None):
         return self._get_json("commodities", params)
 
-    def get_accounts(self, params: Optional[Mapping[str, Any]] = None) -> Any:
+    def get_accounts(self, params: dict | None = None):
         return self._get_json("accounts", params)
 
-    def get_account_transactions(
-        self, account_name: str, params: Optional[Mapping[str, Any]] = None
-    ) -> Transactions | Any:
+    def get_account_transactions(self, account_name: str, params: dict | None = None):
         # If the endpoint mirrors /transactions schema, validate; otherwise return raw.
         data = self._get_json(f"accounttransactions/{account_name}", params)
-        try:
-            return Transactions.model_validate(data)
-        except Exception:
-            return data
+        return Transactions.model_validate(data)
 
     # --------------- Internal helpers ---------------
-    def _get_json(self, path: str, params: Optional[Mapping[str, Any]] = None) -> Any:
+    def _get_json(self, path: str, params: dict | None = None):
         client = self._ensure_client()
         try:
             resp = client.get(path.lstrip("/"), params=params)

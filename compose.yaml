@@ -1,7 +1,12 @@
+networks:
+  default:
+    name: selfhost
+    driver: bridge
+    external: true
 services:
   app:
     container_name: app
-    image: local/reflex-app
+    image: hledger-reflex-app
     environment:
       HLEDGER_API: http://100.89.182.96:5003
     build:
@@ -9,4 +14,7 @@ services:
     restart: always
     ports:
       - 8000:8000
-      - 3000:3000
+    labels:
+      com.centurylinklabs.watchtower.enable: false
+      traefik.enable: true
+      traefik.http.services.ipay-crawler.loadbalancer.server.port: 3000

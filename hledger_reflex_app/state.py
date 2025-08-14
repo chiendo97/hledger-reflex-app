@@ -191,10 +191,7 @@ class State(rx.State):
                 total_posting_amount = (
                     sum(p.amounts_numeric) if p.amounts_numeric else 0.0
                 )
-                try:
-                    total_posting_amount_int = int(total_posting_amount)
-                except Exception:
-                    total_posting_amount_int = 0
+                total_posting_amount_int = int(total_posting_amount)
                 parts = p.account.split(":")
                 group_key = (
                     ":".join(parts[: self.nested_level])
@@ -246,12 +243,8 @@ class State(rx.State):
         yield
         raw_txns: list = []
         with HLedgerClient() as client:
-            try:
-                raw = client.get_transactions().model_dump(mode="json")
-                if isinstance(raw, list):
-                    raw_txns = raw
-            except Exception:
-                pass
+            raw = client.get_transactions().model_dump(mode="json")
+            raw_txns = raw
         simplified: list[TransactionData] = []
         for t in raw_txns:
             postings: list[PostingData] = []
@@ -261,10 +254,7 @@ class State(rx.State):
                 commodity: str = ""
                 for a in p.get("pamount", []) or []:
                     qty_val = a.get("aquantity")
-                    try:
-                        qty = int(qty_val.get("floatingPoint"))
-                    except Exception:
-                        qty = 0
+                    qty = int(qty_val.get("floatingPoint"))
                     comm = a.get("acommodity") or ""
                     if comm and not commodity:
                         commodity = comm
@@ -303,12 +293,8 @@ class State(rx.State):
     def load_accountnames(self):
         names: list[str] = []
         with HLedgerClient() as client:
-            try:
-                raw = client.get_accountnames().model_dump(mode="json")
-                if isinstance(raw, list):
-                    names = [str(n) for n in raw]
-            except Exception:
-                pass
+            raw = client.get_accountnames().model_dump(mode="json")
+            names = [str(n) for n in raw]
         self.accountnames = names
 
     @rx.event

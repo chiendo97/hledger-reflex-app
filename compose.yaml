@@ -1,10 +1,12 @@
 services:
-  ipay-reflex-app:
+  app:
+    container_name: app
+    image: local/reflex-app
+    environment:
+      HLEDGER_API: http://100.89.182.96:5003
     build:
       context: .
+    restart: always
     ports:
-      - "3000:3000"
-      - "8000:8000"
-    environment:
-      - HLEDGER_API=http://100.89.182.96:5003
-    restart: "no"
+      - 8000:8000
+      - 3000:3000

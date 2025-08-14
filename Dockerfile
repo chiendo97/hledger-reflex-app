@@ -1,6 +1,6 @@
 FROM python:3.12-slim-bookworm
 
-RUN apt update && apt upgrade -y && apt install -y zip curl
+RUN apt update && apt upgrade -y && apt install -y curl && rm -rf /var/lib/apt/lists/*
 
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 
@@ -15,10 +15,7 @@ RUN uv sync --locked
 
 COPY . .
 
-# Download all npm dependencies and compile frontend
-RUN uv run reflex export --frontend-only --no-zip
+HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
+  CMD curl -f http://localhost:8000/ping || exit 1
 
-# Needed until Reflex properly passes SIGTERM on backend.
-STOPSIGNAL SIGKILL
-
-CMD ["uv", "run", "reflex", "run", "--env", "prod"]
+CMD exec uv run reflex run --env prod

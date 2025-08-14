@@ -4,7 +4,7 @@ networks:
     driver: bridge
     external: true
 services:
-  app:
+  hledger-reflex-app:
     container_name: app
     image: hledger-reflex-app
     environment:
@@ -17,4 +17,4 @@ services:
     labels:
       com.centurylinklabs.watchtower.enable: false
       traefik.enable: true
-      traefik.http.services.ipay-crawler.loadbalancer.server.port: 3000
+      traefik.http.services.hledger-reflex-app.loadbalancer.server.port: 3000

@@ -2,7 +2,6 @@ networks:
   default:
     name: selfhost
     driver: bridge
-    external: true
 services:
   hledger-reflex-app:
     container_name: app
@@ -13,7 +12,7 @@ services:
       context: .
     restart: always
     ports:
-      - 8000:8000
+      - 8080:8080
     labels:
       com.centurylinklabs.watchtower.enable: false
       traefik.enable: true

@@ -102,6 +102,12 @@ def transactions_page() -> rx.Component:
             rx.heading("Transactions", size="7"),
             rx.flex(
                 rx.select(
+                    State.available_years,
+                    placeholder="Year",
+                    on_change=State.set_selected_year,
+                    value=State.selected_year,
+                ),
+                rx.select(
                     State.available_months,
                     placeholder="Month",
                     on_change=State.set_selected_month,
@@ -218,6 +224,12 @@ def balance_sheet_page() -> rx.Component:
             rx.heading("Balance Sheet", size="7"),
             rx.flex(
                 rx.select(
+                    State.available_years,
+                    placeholder="Year",
+                    on_change=State.set_selected_year,
+                    value=State.selected_year,
+                ),
+                rx.select(
                     [str(i) for i in range(1, 4)],
                     placeholder="Level",
                     on_change=State.set_nested_level,
@@ -253,6 +265,12 @@ def income_statement_page() -> rx.Component:
         rx.vstack(
             rx.heading("Income Statement", size="7"),
             rx.flex(
+                rx.select(
+                    State.available_years,
+                    placeholder="Year",
+                    on_change=State.set_selected_year,
+                    value=State.selected_year,
+                ),
                 rx.select(
                     State.available_months,
                     placeholder="Month",

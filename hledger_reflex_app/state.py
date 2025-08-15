@@ -84,6 +84,7 @@ class State(rx.State):
     transactions: list[TransactionData] = []
     accountnames: list[str] = []
     loading: bool = False
+    selected_year: str = "2025"
     selected_month: str = ""
     search_description: str = ""
     search_account: str = ""
@@ -105,6 +106,10 @@ class State(rx.State):
     @rx.var
     def expenses(self) -> list[str]:
         return [a for a in self.accountnames if a.lower().startswith("expense")]
+
+    @rx.event
+    def set_selected_year(self, year: str):
+        self.selected_year = year
 
     @rx.event
     def set_selected_month(self, month: str):
@@ -134,9 +139,15 @@ class State(rx.State):
 
     @rx.event
     def clear_transaction_filters(self):
+        self.selected_year = "2025"
         self.selected_month = ""
         self.search_description = ""
         self.search_account = ""
+
+    @rx.var
+    def available_years(self) -> list[str]:
+        years = {t.date[:4] for t in self.transactions if len(t.date) >= 4}
+        return sorted(years, reverse=True)
 
     @rx.var
     def available_months(self) -> list[str]:
@@ -149,6 +160,8 @@ class State(rx.State):
         acct = self.search_account.lower()
         res: list[TransactionData] = []
         for tx in self.transactions:
+            if self.selected_year and not tx.date[:4] == self.selected_year:
+                continue
             if self.selected_month and not tx.date[5:7] == self.selected_month:
                 continue
             if desc and desc not in tx.description.lower():
@@ -173,11 +186,17 @@ class State(rx.State):
         return res
 
     def _aggregate_balances(
-        self, root_prefix: str, apply_month: bool = True
+        self, root_prefix: str, apply_month: bool = True, apply_year: bool = True
     ) -> dict[str, tuple[int, str]]:
         balances: dict[str, int] = defaultdict(int)
         commodities: dict[str, str] = {}
         for tx in reversed(self.transactions):
+            if (
+                apply_year
+                and self.selected_year
+                and not tx.date[:4] == self.selected_year
+            ):
+                continue
             if (
                 apply_month
                 and self.selected_month
@@ -201,11 +220,16 @@ class State(rx.State):
                 balances[group_key] += total_posting_amount_int
                 if group_key not in commodities and p.commodity:
                     commodities[group_key] = p.commodity
+
         return {k: (balances[k], commodities.get(k) or "") for k in balances}
 
     @rx.var
     def asset_balances(self) -> list[AccountBalanceData]:
-        data = self._aggregate_balances("asset", apply_month=False)
+        data = self._aggregate_balances(
+            "asset",
+            apply_month=False,
+            apply_year=False,
+        )
         return [
             AccountBalanceData(name=k, balance=v[0], commodity=v[1])
             for k, v in sorted(data.items(), key=lambda item: (-item[1][0], item[0]))
@@ -213,7 +237,11 @@ class State(rx.State):
 
     @rx.var
     def liability_balances(self) -> list[AccountBalanceData]:
-        data = self._aggregate_balances("liability", apply_month=False)
+        data = self._aggregate_balances(
+            "liability",
+            apply_month=False,
+            apply_year=False,
+        )
         return [
             AccountBalanceData(name=k, balance=v[0], commodity=v[1])
             for k, v in sorted(data.items(), key=lambda item: (-item[1][0], item[0]))
@@ -221,7 +249,7 @@ class State(rx.State):
 
     @rx.var
     def income_balances(self) -> list[AccountBalanceData]:
-        data = self._aggregate_balances("revenue", apply_month=True)
+        data = self._aggregate_balances("revenue", apply_month=True, apply_year=True)
         return [
             AccountBalanceData(name=k, balance=-v[0], commodity=v[1])
             for k, v in sorted(data.items(), key=lambda item: (item[1][0], item[0]))
@@ -229,7 +257,7 @@ class State(rx.State):
 
     @rx.var
     def expense_balances(self) -> list[AccountBalanceData]:
-        data = self._aggregate_balances("expense", apply_month=True)
+        data = self._aggregate_balances("expense", apply_month=True, apply_year=True)
         return [
             AccountBalanceData(name=k, balance=-v[0], commodity=v[1])
             for k, v in sorted(data.items(), key=lambda item: (-item[1][0], item[0]))
@@ -302,6 +330,9 @@ class State(rx.State):
         q = self.router.url.query_parameters.get("query")
         if q:
             self.search_account = str(q)
+
+        yield
+
         self.load_transactions()
 
     @rx.var
@@ -342,6 +373,9 @@ class State(rx.State):
         level2_totals: dict[str, int] = defaultdict(int)
 
         for tx in self.transactions:
+            # Apply year filter if selected
+            if self.selected_year and not tx.date[:4] == self.selected_year:
+                continue
             # Apply month filter if selected
             if self.selected_month and not tx.date[5:7] == self.selected_month:
                 continue
@@ -435,6 +469,9 @@ class State(rx.State):
         for tx in self.transactions:
             if len(tx.date) < 7:
                 continue
+            # Apply year filter if selected
+            if self.selected_year and not tx.date[:4] == self.selected_year:
+                continue
             month = tx.date[:7]  # YYYY-MM
             for p in tx.postings:
                 acct_lower = p.account.lower()
@@ -462,7 +499,6 @@ class State(rx.State):
                     v = -v
                 row[cat] = v
             rows.append(row)
-        print(rows)
         return rows
 
     @rx.var
@@ -476,6 +512,9 @@ class State(rx.State):
         month_cat: dict[str, dict[str, int]] = defaultdict(lambda: defaultdict(int))
         for tx in self.transactions:
             if len(tx.date) < 7:
+                continue
+            # Apply year filter if selected
+            if self.selected_year and not tx.date[:4] == self.selected_year:
                 continue
             month = tx.date[:7]  # YYYY-MM
             for p in tx.postings:

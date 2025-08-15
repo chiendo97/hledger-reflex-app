@@ -83,29 +83,17 @@ class AccountBalanceData(BaseModel):
 class State(rx.State):
     transactions: list[TransactionData] = []
     accountnames: list[str] = []
+
     loading: bool = False
+
     selected_year: str = "2025"
     selected_month: str = ""
+
     search_description: str = ""
     search_account: str = ""
+
     nested_level: int = 3
     sort_by: str = "index"
-
-    @rx.var
-    def assets(self) -> list[str]:
-        return [a for a in self.accountnames if a.lower().startswith("asset")]
-
-    @rx.var
-    def liabilities(self) -> list[str]:
-        return [a for a in self.accountnames if a.lower().startswith("liability")]
-
-    @rx.var
-    def income(self) -> list[str]:
-        return [a for a in self.accountnames if a.lower().startswith("revenue")]
-
-    @rx.var
-    def expenses(self) -> list[str]:
-        return [a for a in self.accountnames if a.lower().startswith("expense")]
 
     @rx.event
     def set_selected_year(self, year: str):
@@ -126,7 +114,7 @@ class State(rx.State):
     @rx.event
     def set_nested_level(self, level: str):
         try:
-            self.nested_level = max(1, min(10, int(level)))
+            self.nested_level = max(1, min(3, int(level)))
         except ValueError:
             self.nested_level = 1
 
@@ -331,9 +319,7 @@ class State(rx.State):
         if q:
             self.search_account = str(q)
 
-        yield
-
-        self.load_transactions()
+        yield State.load_transactions
 
     @rx.var
     def income_data(self) -> list:

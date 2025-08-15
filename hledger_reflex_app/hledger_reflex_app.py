@@ -42,7 +42,13 @@ def account_table(title: str, rows_var):
                         rows_var,
                         lambda r: rx.table.row(
                             rx.table.cell(
-                                rx.link(r.name, href=f"/transaction?query={r.name}")
+                                rx.link(
+                                    r.name,
+                                    href=f"/transaction?query={r.name}",
+                                    # Better text wrapping for long account names
+                                    word_break="break-word",
+                                    line_height="1.3",
+                                )
                             ),
                             rx.table.cell(
                                 rx.text(
@@ -51,6 +57,7 @@ def account_table(title: str, rows_var):
                                     size="2",
                                     text_align="right",
                                     color=r.color,
+                                    white_space="break-word",
                                 )
                             ),
                         ),
@@ -100,43 +107,82 @@ def transactions_page() -> rx.Component:
         nav(),
         rx.vstack(
             rx.heading("Transactions", size="7"),
-            rx.flex(
-                rx.select(
-                    State.available_years,
-                    placeholder="Year",
-                    on_change=State.set_selected_year,
-                    value=State.selected_year,
+            rx.vstack(
+                # Primary filters row
+                rx.flex(
+                    rx.select(
+                        State.available_years,
+                        placeholder="Year",
+                        on_change=State.set_selected_year,
+                        value=State.selected_year,
+                        min_width="80px",
+                        flex="1",
+                    ),
+                    rx.select(
+                        State.available_months,
+                        placeholder="Month",
+                        on_change=State.set_selected_month,
+                        value=State.selected_month,
+                        min_width="100px",
+                        flex="1",
+                    ),
+                    rx.select(
+                        ["index", "amount"],
+                        placeholder="Sort by",
+                        value=State.sort_by,
+                        on_change=State.set_sort_by,
+                        min_width="100px",
+                        flex="1",
+                    ),
+                    spacing="2",
+                    flex_wrap="wrap",
+                    width="100%",
+                    flex_direction=rx.breakpoints(initial="column", sm="row"),
                 ),
-                rx.select(
-                    State.available_months,
-                    placeholder="Month",
-                    on_change=State.set_selected_month,
-                    value=State.selected_month,
+                # Search filters row
+                rx.flex(
+                    rx.input(
+                        placeholder="Search description",
+                        value=State.search_description,
+                        on_change=State.set_search_description,
+                        flex="1",
+                        min_width="150px",
+                    ),
+                    rx.input(
+                        placeholder="Search account",
+                        value=State.search_account,
+                        on_change=State.set_search_account,
+                        flex="1",
+                        min_width="150px",
+                    ),
+                    spacing="2",
+                    flex_wrap="wrap",
+                    width="100%",
+                    flex_direction=rx.breakpoints(initial="column", sm="row"),
                 ),
-                rx.input(
-                    placeholder="Search description",
-                    value=State.search_description,
-                    on_change=State.set_search_description,
+                # Action buttons row
+                rx.flex(
+                    rx.button(
+                        "Clear",
+                        on_click=State.clear_transaction_filters,
+                        variant="soft",
+                        size="2",
+                        width="100px",
+                    ),
+                    rx.button(
+                        "Reload",
+                        on_click=State.load_transactions,
+                        loading=State.loading,
+                        size="2",
+                        width="100px",
+                    ),
+                    spacing="2",
+                    width="100%",
+                    flex_direction=rx.breakpoints(initial="column", sm="row"),
+                    justify="end",
+                    align_self="end",
                 ),
-                rx.input(
-                    placeholder="Search account",
-                    value=State.search_account,
-                    on_change=State.set_search_account,
-                ),
-                rx.select(
-                    ["index", "amount"],
-                    placeholder="Sort by",
-                    value=State.sort_by,
-                    on_change=State.set_sort_by,
-                ),
-                rx.button("Clear", on_click=State.clear_transaction_filters),
-                rx.button(
-                    "Reload",
-                    on_click=State.load_transactions,
-                    loading=State.loading,
-                ),
-                spacing="2",
-                flex_wrap="wrap",
+                spacing="3",
                 width="100%",
             ),
             # Initialize page (reads query + loads data)
@@ -153,10 +199,10 @@ def transactions_page() -> rx.Component:
                                 spacing="2",
                                 width="100%",
                             ),
-                            padding="10px",
+                            padding="12px",
                             border="1px solid",
                             border_color=rx.color("accent", 4),
-                            border_radius="8px",
+                            border_radius="12px",
                             width="100%",
                         ),
                     ),
@@ -167,41 +213,80 @@ def transactions_page() -> rx.Component:
                     rx.foreach(
                         State.transactions_filtered,
                         lambda t: rx.box(
-                            rx.hstack(
-                                rx.badge(t.date, color_scheme="gray", size="2"),
-                                rx.spacer(),
-                                rx.text(t.description, align="right"),
+                            # Transaction header - mobile optimized
+                            rx.vstack(
+                                rx.flex(
+                                    rx.badge(
+                                        t.date,
+                                        color_scheme="gray",
+                                        size="2",
+                                        flex_shrink="0",
+                                    ),
+                                    rx.text(
+                                        t.description,
+                                        size="3",
+                                        weight="medium",
+                                        text_overflow="ellipsis",
+                                        overflow="hidden",
+                                        white_space="nowrap",
+                                        flex="1",
+                                        margin_left="8px",
+                                    ),
+                                    width="100%",
+                                    align="center",
+                                    gap="2",
+                                ),
+                                spacing="1",
                                 width="100%",
-                                align="center",
                             ),
+                            # Postings section - improved mobile layout
                             rx.vstack(
                                 rx.foreach(
                                     t.postings,
-                                    lambda p: rx.flex(
-                                        rx.text(
-                                            p.account,
-                                            weight="bold",
-                                            color=rx.color(p.account_color, 11),
+                                    lambda p: rx.vstack(
+                                        # Desktop layout - side by side
+                                        rx.flex(
+                                            rx.text(
+                                                p.account,
+                                                weight="bold",
+                                                color=rx.color(p.account_color, 11),
+                                            ),
+                                            rx.text(
+                                                p.amounts_display,
+                                                font_family="monospace",
+                                                size="2",
+                                                color=p.amount_color,
+                                                flex_shrink="0",
+                                                margin_left="8px",
+                                            ),
+                                            width="100%",
+                                            align="center",
+                                            flex_wrap="wrap",
+                                            justify="between",
                                         ),
-                                        rx.text(
-                                            p.amounts_display,
-                                            font_family="monospace",
-                                            size="2",
-                                            text_align="right",
-                                            color=p.amount_color,
-                                        ),
+                                        spacing="2",
                                         width="100%",
-                                        align="center",
-                                        justify="between",
+                                        background=rx.color("gray", 1),
+                                        border_radius="8px",
+                                        margin_bottom="4px",
                                     ),
                                 ),
-                                padding_left="16px",
+                                spacing="2",
+                                width="100%",
+                                margin_top="8px",
                             ),
-                            padding="10px",
+                            padding="12px",
                             border="1px solid",
                             border_color=rx.color("accent", 4),
-                            border_radius="8px",
+                            border_radius="12px",
                             width="100%",
+                            background=rx.color("gray", 1),
+                            # Add hover effect for better UX
+                            _hover={
+                                "border_color": rx.color("accent", 6),
+                                "shadow": "sm",
+                            },
+                            transition="all 0.2s ease",
                         ),
                     ),
                     spacing="3",
@@ -212,6 +297,8 @@ def transactions_page() -> rx.Component:
             width="100%",
         ),
         padding_y="16px",
+        padding_x=rx.breakpoints(initial="12px", sm="16px"),
+        max_width="1200px",
     )
 
 

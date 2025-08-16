@@ -296,9 +296,6 @@ def transactions_page() -> rx.Component:
             spacing="4",
             width="100%",
         ),
-        padding_y="16px",
-        padding_x=rx.breakpoints(initial="12px", sm="16px"),
-        max_width="1200px",
     )
 
 

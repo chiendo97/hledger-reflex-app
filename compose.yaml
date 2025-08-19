@@ -16,4 +16,3 @@ services:
     labels:
       com.centurylinklabs.watchtower.enable: false
       traefik.enable: true
-      traefik.http.services.hledger-reflex-app.loadbalancer.server.port: 3000

@@ -4,7 +4,7 @@
 	}
 }
 
-http://*:8088 {
+http://:8088 {
 	encode gzip
 
 	@backend_routes path /_event/* /ping /_upload /_upload/*

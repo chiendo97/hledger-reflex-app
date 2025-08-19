@@ -5,7 +5,7 @@ networks:
     external: true
 services:
   hledger-reflex-app:
-    container_name: app
+    container_name: hledger-reflex-app
     image: hledger-reflex-app
     environment:
       HLEDGER_API: http://100.89.182.96:5003

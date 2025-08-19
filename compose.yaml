@@ -2,6 +2,7 @@ networks:
   default:
     name: selfhost
     driver: bridge
+    external: true
 services:
   hledger-reflex-app:
     container_name: app

@@ -1,3 +1,9 @@
+{
+	log {
+		level DEBUG
+	}
+}
+
 http://*:8088 {
 	encode gzip
 

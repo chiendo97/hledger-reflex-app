@@ -3,12 +3,31 @@
 import hashlib
 import time
 from collections import defaultdict
+from datetime import datetime
 from typing import Final
 
 import reflex as rx
 from pydantic import BaseModel, computed_field
 
 from .hledger_api import HLedgerClient
+
+
+def format_amount_compact(amount: int, commodity: str = "") -> str:
+    """Format amount with K/M suffixes for shorter display."""
+    abs_amount = abs(amount)
+    sign = "-" if amount < 0 else ""
+
+    if abs_amount >= 1_000_000:
+        formatted = f"{sign}{abs_amount / 1_000_000:.1f}M"
+    elif abs_amount >= 1_000:
+        formatted = f"{sign}{abs_amount / 1_000:.1f}K"
+    else:
+        formatted = f"{sign}{abs_amount:,}"
+
+    if commodity:
+        formatted += f" {commodity}"
+
+    return formatted
 
 
 class PostingData(BaseModel):
@@ -87,12 +106,12 @@ class State(rx.State):
     loading: bool = False
 
     selected_year: str = "2025"
-    selected_month: str = ""
+    selected_month: str = datetime.now().strftime("%m")
 
     search_description: str = ""
     search_account: str = ""
 
-    nested_level: int = 3
+    nested_level: int = 2
     sort_by: str = "index"
 
     @rx.event
@@ -128,9 +147,13 @@ class State(rx.State):
     @rx.event
     def clear_transaction_filters(self):
         self.selected_year = "2025"
-        self.selected_month = ""
+        self.selected_month = datetime.now().strftime("%m")
         self.search_description = ""
         self.search_account = ""
+
+    @rx.var
+    def level(self) -> str:
+        return str(self.nested_level)
 
     @rx.var
     def available_years(self) -> list[str]:
@@ -216,7 +239,7 @@ class State(rx.State):
         data = self._aggregate_balances(
             "asset",
             apply_month=False,
-            apply_year=False,
+            apply_year=True,
         )
         return [
             AccountBalanceData(name=k, balance=v[0], commodity=v[1])
@@ -228,7 +251,7 @@ class State(rx.State):
         data = self._aggregate_balances(
             "liability",
             apply_month=False,
-            apply_year=False,
+            apply_year=True,
         )
         return [
             AccountBalanceData(name=k, balance=v[0], commodity=v[1])
@@ -274,9 +297,7 @@ class State(rx.State):
                     comm = a.get("acommodity") or ""
                     if comm and not commodity:
                         commodity = comm
-                    formatted = f"{qty:,}"
-                    if comm:
-                        formatted += f" {comm}"
+                    formatted = format_amount_compact(qty, comm)
                     amounts_list.append(formatted)
                     amounts_numeric.append(qty)
                 account_name = p.get("paccount", "")

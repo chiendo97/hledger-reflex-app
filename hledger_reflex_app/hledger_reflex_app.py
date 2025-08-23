@@ -317,6 +317,7 @@ def balance_sheet_page() -> rx.Component:
                     [str(i) for i in range(1, 4)],
                     placeholder="Level",
                     on_change=State.set_nested_level,
+                    value=State.level,
                 ),
                 rx.button(
                     "Reload",
@@ -365,6 +366,7 @@ def income_statement_page() -> rx.Component:
                     [str(i) for i in range(1, 4)],
                     placeholder="Level",
                     on_change=State.set_nested_level,
+                    value=State.level,
                 ),
                 rx.button(
                     "Reload",
